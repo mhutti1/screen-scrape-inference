@@ -1,0 +1,66 @@
+def targetFolder = "src/main/assets"
+def modelQuantDownloadUrl = "http://download.tensorflow.org/models/mobilenet_v1_2018_08_02/mobilenet_v1_1.0_224_quant.tgz"
+def modelQuantLocalUrl = "http://storage.googleapis.com/download.tensorflow.org/models/tflite/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip"
+def localCacheQuant = "build/intermediates/mobilenet_v1_1.0_224_quant.tgz"
+def localCacheQuantLocal = "build/intermediates/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip"
+
+
+
+task downloadModelQuant(type: DownloadUrlTask) {
+    doFirst {
+        println "Downloading ${modelQuantDownloadUrl}"
+    }
+    sourceUrl = "${modelQuantDownloadUrl}"
+    target = file("${localCacheQuant}")
+}
+
+task downloadModelLocal(type: DownloadUrlTask) {
+    doFirst {
+        println "Downloading ${modelQuantLocalUrl}"
+    }
+    sourceUrl = "${modelQuantLocalUrl}"
+    target = file("${localCacheQuantLocal}")
+}
+
+task unzipModelQuant(type: Copy, dependsOn: 'downloadModelQuant') {
+    doFirst {
+        println "Unzipping ${localCacheQuant}"
+    }
+    from tarTree("${localCacheQuant}")
+    into "${targetFolder}"
+}
+
+task unzipModelQuantLocal(type: Copy, dependsOn: 'downloadModelLocal') {
+    doFirst {
+        println "Unzipping ${localCacheQuantLocal}"
+    }
+    from zipTree("${localCacheQuantLocal}")
+    into "${targetFolder}"
+}
+
+task cleanUnusedFiles(type: Delete, dependsOn: ['unzipModelQuant', 'unzipModelQuantLocal']) {
+    delete fileTree("${targetFolder}").matching {
+        include "*.pb"
+        include "*.ckpt.*"
+        include "*.pbtxt*"
+        include "*.quant_info.*"
+        include "*.meta"
+    }
+}
+
+class DownloadUrlTask extends DefaultTask {
+    @Input
+    String sourceUrl
+
+    @OutputFile
+    File target
+
+    @TaskAction
+    void download() {
+        ant.get(src: sourceUrl, dest: target)
+    }
+}
+
+preBuild.dependsOn unzipModelQuant
+preBuild.dependsOn unzipModelQuantLocal
+preBuild.dependsOn cleanUnusedFiles
